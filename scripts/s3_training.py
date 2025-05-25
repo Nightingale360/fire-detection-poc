@@ -19,6 +19,10 @@ parser.add_argument(
     help="Number of epochs"
 )
 parser.add_argument(
+    "--batch", type=int, default=50,
+    help="Number in a batch"
+)
+parser.add_argument(
     "--imgsz", type=int, default=640,
     help="Image size"
 )
@@ -55,6 +59,12 @@ model = YOLO(args.model_arch)
 #     name="yolov11_training",
 #     exist_ok=True
 # )
+
+val_results = model.val( data=data_yaml, imgsz=args.imgsz, batch=16,verbose=True )
+
+map50 = float(val_results.box.map50)
+
+task.get_logger().report_scalar( title="train/metrics", series="val/mAP50", value=map50, iteration=0)
 
 # 6) Upload best weights
 run_dir = model.run_dir  # e.g. runs/AlphaFirewatch/yolov8_training
