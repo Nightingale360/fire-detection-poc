@@ -1,5 +1,6 @@
 # run_pipeline.py
-from clearml.automation import PipelineController, PipelineEvents
+from clearml.automation import PipelineController
+from clearml.automation.controller import PipelineEvents
 
 EXECUTION_QUEUE = "FireWatchQueue"
 
