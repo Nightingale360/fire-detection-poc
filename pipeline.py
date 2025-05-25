@@ -1,5 +1,5 @@
 # run_pipeline.py
-from clearml.automation import PipelineController
+from clearml.automation import PipelineController, PipelineEvents
 
 EXECUTION_QUEUE = "FireWatchQueue"
 
@@ -16,9 +16,10 @@ pipe = PipelineController(
     name="Firewatch End-to-End Pipeline",
     version="0.0.5",
     add_pipeline_tags=False,
-    pre_execute_callback=pre_cb,
-    post_execute_callback=post_cb,# don’t auto-tag every run
 )
+
+pipe.on_event(PipelineEvents.step_started, pre_cb)
+pipe.on_event(PipelineEvents.step_completed, post_cb)
 
 pipe.set_default_execution_queue("task")
 
