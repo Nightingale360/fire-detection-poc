@@ -8,6 +8,7 @@ task = Task.init(
     project_name="AlphaFirewatch",
     task_name="Step 1: Download Compressed Dataset"
 )
+print(task.id) 
 
 task.execute_remotely()
 
@@ -19,12 +20,7 @@ drive_url = (
 )
 local_zip = StorageManager.get_local_copy(remote_url=drive_url, artifact_name="labelled_dataset_zip")
 
-print(f"✅ Downloaded ZIP to: {local_zip}")
-
 task.upload_artifact(
     name="labelled_dataset_zip",
     artifact_object=local_zip
 )
-
-print("📦 Uploading artifacts in the background…")
-print("Done🔥")
