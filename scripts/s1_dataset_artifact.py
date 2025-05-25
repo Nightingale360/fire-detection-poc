@@ -23,6 +23,3 @@ task.upload_artifact(
     artifact_object=local_zip
 )
 print("📦 Uploaded raw_dataset_zip")
-
-# 5) Emit the Task ID (for CI chaining)
-print(task.id)
