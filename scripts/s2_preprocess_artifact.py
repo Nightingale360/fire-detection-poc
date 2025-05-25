@@ -46,6 +46,3 @@ task.upload_artifact(
     artifact_object=extract_dir
 )
 print("📦 Uploaded yolo_dataset")
-
-# 7) Emit this Task’s ID
-print(task.id)
