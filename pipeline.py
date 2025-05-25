@@ -3,12 +3,21 @@ from clearml.automation import PipelineController
 
 EXECUTION_QUEUE = "FireWatchQueue"
 
+def pre_cb(pipeline, node, current_override):
+    print(f"→ Launching step `{node.name}` using base task {node.base_task_id}")
+    return True
+
+def post_cb(pipeline, node):
+    print(f"✓ Completed step `{node.name}` → new Task ID {node.executed}")
+
 # Create the pipeline controller ─────────────────────────────────────────
 pipe = PipelineController(
     project="AlphaFirewatch",
     name="Firewatch End-to-End Pipeline",
     version="0.0.5",
-    add_pipeline_tags=False,    # don’t auto-tag every run
+    add_pipeline_tags=False,
+    pre_execute_callback=pre_cb,
+    post_execute_callback=post_cb,# don’t auto-tag every run
 )
 
 pipe.set_default_execution_queue("task")
@@ -89,15 +98,7 @@ pipe.add_step(
 )
 
 
-def pre_cb(pipeline, node, current_override):
-    print(f"→ Launching step `{node.name}` using base task {node.base_task_id}")
-    return True
 
-def post_cb(pipeline, node):
-    print(f"✓ Completed step `{node.name}` → new Task ID {node.executed}")
-
-pipe.set_pre_execute_callback(pre_cb)
-pipe.set_post_execute_callback(post_cb)
 
 # ─── 7) Kick it off ───────────────────────────────────────────────────────────
 # Choose `local=True` if you want each step to run in this process,
