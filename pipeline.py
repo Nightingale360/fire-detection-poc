@@ -49,7 +49,7 @@ pipe.add_step(
 # Step 4: Hyper‐Parameter Optimization
 pipe.add_step(
     name="step4_hpo",
-    parents=["step3_train"],
+    parents=["step3_train", "step2_unzip"],
     base_task_project="AlphaFirewatch",
     base_task_name="HPO: FireWatch YOLO Tuning",
     execution_queue=EXECUTION_QUEUE,
