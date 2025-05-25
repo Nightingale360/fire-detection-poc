@@ -3,7 +3,7 @@ name: Trigger ClearML Pipeline
 on:
   push:
     # any branch named feature/<anything>
-    branches: [main]
+    branches: [feature]
 
 jobs:
   run-pipeline:
