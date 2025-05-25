@@ -72,7 +72,7 @@ hpo = HyperParameterOptimizer(
             max_value=args.epochs  
         ),
         # Tune batch size between 16 and 64
-        UniformIntegerParameterRange("batch", min_value=16, max_value=64),
+        UniformIntegerParameterRange("batch", min_value=16, max_value=128),
     ],
     # This matches  YOLO validation logging:
     objective_metric_title="train/metrics",
