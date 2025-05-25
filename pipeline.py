@@ -1,6 +1,5 @@
 # run_pipeline.py
 from clearml.automation import PipelineController
-from clearml.automation.controller import PipelineEvents
 
 EXECUTION_QUEUE = "FireWatchQueue"
 
@@ -19,10 +18,7 @@ pipe = PipelineController(
     add_pipeline_tags=False,
 )
 
-pipe.on_event(PipelineEvents.step_started, pre_cb)
-pipe.on_event(PipelineEvents.step_completed, post_cb)
-
-pipe.set_default_execution_queue("task")
+pipe.set_default_execution_queue(EXECUTION_QUEUE)
 
 # Step 1: Download compressed dataset
 pipe.add_step(
@@ -99,10 +95,6 @@ pipe.add_step(
     }
 )
 
-
-
-
-# ─── 7) Kick it off ───────────────────────────────────────────────────────────
 # Choose `local=True` if you want each step to run in this process,
 # or `local=False` (the default) to dispatch to your agents.
 pipe.start(queue="task")
