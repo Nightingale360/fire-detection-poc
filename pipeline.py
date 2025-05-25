@@ -1,23 +1,13 @@
-# run_pipeline.py
 from clearml.automation import PipelineController
 
 EXECUTION_QUEUE = "FireWatchQueue"
 
-def pre_cb(pipeline, node, current_override):
-    print(f"→ Launching step `{node.name}` using base task {node.base_task_id}")
-    return True
-
-def post_cb(pipeline, node):
-    print(f"✓ Completed step `{node.name}` → new Task ID {node.executed}")
-
-# Create the pipeline controller ─────────────────────────────────────────
 pipe = PipelineController(
     project="AlphaFirewatch",
     name="Firewatch End-to-End Pipeline",
     version="0.0.5",
     add_pipeline_tags=False,
 )
-
 pipe.set_default_execution_queue(EXECUTION_QUEUE)
 
 # Step 1: Download compressed dataset
@@ -36,8 +26,7 @@ pipe.add_step(
     base_task_name="Step 2: Unzip YOLO Dataset",
     execution_queue=EXECUTION_QUEUE,
     parameter_override={
-        # this matches the argparse name in s2_preprocess_artifact.py
-        "dataset_task_id": "${step1_download_zip.id}"
+        "Args/dataset_task_id": "${step1_download_zip.id}"
     }
 )
 
@@ -49,17 +38,15 @@ pipe.add_step(
     base_task_name="Step 3: Fire and Smoke Detection Training",
     execution_queue=EXECUTION_QUEUE,
     parameter_override={
-        # match the argparse dest names in s3_training.py
-        "dataset_task_id": "${step2_unzip.id}",
-        "model_arch":      "yolo11n.pt",
-        "epochs":          50,
-        "batch":           50,
-        "imgsz":           640,
+        "Args/dataset_task_id": "${step2_unzip.id}",
+        "Args/model_arch":      "yolo11n.pt",
+        "Args/epochs":          50,
+        "Args/batch":           50,
+        "Args/imgsz":           640,
     }
 )
 
-# Step 4: HPO
-# Step 4: Hyper-Parameter Optimization
+# Step 4: Hyper‐Parameter Optimization
 pipe.add_step(
     name="step4_hpo",
     parents=["step3_train"],
@@ -67,14 +54,13 @@ pipe.add_step(
     base_task_name="HPO: FireWatch YOLO Tuning",
     execution_queue=EXECUTION_QUEUE,
     parameter_override={
-        # these must match your argparse dest names in s4_hpo.py
-        "dataset_task_id":   "${step2_unzip.id}",
-        "train_task_id":     "${step3_train.id}",
-        "num_trials":        4,
-        "epochs":            100,
-        "time_limit_minutes": 60,
-        "test_queue":        EXECUTION_QUEUE,
-    },
+        "Args/dataset_task_id":   "${step2_unzip.id}",
+        "Args/train_task_id":     "${step3_train.id}",
+        "Args/num_trials":        4,
+        "Args/epochs":            100,
+        "Args/time_limit_minutes": 60,
+        "Args/test_queue":        EXECUTION_QUEUE,
+    }
 )
 
 # Step 5: Final Model Training
@@ -85,17 +71,15 @@ pipe.add_step(
     base_task_name="Step 5: Final Model Training",
     execution_queue=EXECUTION_QUEUE,
     parameter_override={
-        "dataset_task_id": "${step2_unzip.id}",
-        "hpo_task_id":     "${step4_hpo.id}",
-        "model_arch":      "yolo11n.pt",
-        "imgsz":           640,
-        "project":         "AlphaFirewatch",
-        "name":            "yolov11_final",
-        "conf_thres":      0.25,
+        "Args/dataset_task_id": "${step2_unzip.id}",
+        "Args/hpo_task_id":     "${step4_hpo.id}",
+        "Args/model_arch":      "yolo11n.pt",
+        "Args/imgsz":           640,
+        "Args/project":         "AlphaFirewatch",
+        "Args/name":            "yolov11_final",
+        "Args/conf_thres":      0.25,
     }
 )
 
-# Choose `local=True` if you want each step to run in this process,
-# or `local=False` (the default) to dispatch to your agents.
 pipe.start(queue="task")
 print("Pipeline launched, controller ID:", pipe.id)
