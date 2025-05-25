@@ -1,4 +1,4 @@
-"dataset_artifact.py"
+"s1_dataset_artifact.py"
 from clearml import Task, StorageManager
 import zipfile
 import os
