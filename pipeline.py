@@ -1,3 +1,6 @@
+import urllib3.contrib
+urllib3.contrib.appengine = None
+
 from clearml.automation import PipelineController
 
 EXECUTION_QUEUE = "FireWatchQueue"
