@@ -82,16 +82,16 @@ logger.info("Loaded data.yaml from %s", data_yaml)
 
 #  Final YOLO training
 model = YOLO(args.model_arch)
-# model.train(
-#     data=data_yaml,
-#     epochs=epochs,
-#     imgsz=args.imgsz,
-#     batch=batch,
-#     project=args.project,
-#     name=args.name,
-#     exist_ok=True,
-#     conf=args.conf_thres
-# )
+model.train(
+    data=data_yaml,
+    epochs=epochs,
+    imgsz=args.imgsz,
+    batch=batch,
+    project=args.project,
+    name=args.name,
+    exist_ok=True,
+    conf=args.conf_thres
+)
 logger.info("Completed model.train() → runs/%s/%s", args.project, args.name)
 
 # ─── Upload final best.pt ───────────────────────────────────────────────────────

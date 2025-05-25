@@ -51,14 +51,15 @@ print(f"✅ Loaded data.yaml from {data_yaml}")
 
 # 5) Train with Ultralytics
 model = YOLO(args.model_arch)
-# results = model.train(
-#     data=data_yaml,
-#     epochs=args.epochs,
-#     imgsz=args.imgsz,
-#     project="AlphaFirewatch",
-#     name="yolov11_training",
-#     exist_ok=True
-# )
+
+results = model.train(
+    data=data_yaml,
+    epochs=args.epochs,
+    imgsz=args.imgsz,
+    project="AlphaFirewatch",
+    name="yolov11_training",
+    exist_ok=True
+)
 
 val_results = model.val( data=data_yaml, imgsz=args.imgsz, batch=16,verbose=True )
 
