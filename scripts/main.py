@@ -12,6 +12,7 @@ import numpy as np
 import time
 import datetime
 import streamlit as st
+import random
 
 # 1️⃣ PAGE CONFIG & GLOBAL STYLES
 st.set_page_config(
@@ -24,6 +25,22 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    /* Full-page background image */
+    .reportview-container .main .block-container {
+        background-image: url('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT-fQB5IIJEzGvMBfgU2Gyo6R7zaRhYQMwMng&s');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+    }
+
+    /* Optional: a semi-transparent overlay to improve contrast */
+    .reportview-container .main .block-container::before {
+        content: "";
+        position: absolute;
+        top: 0; right: 0; bottom: 0; left: 0;
+        background-color: rgba(0, 0, 0, 0.4);
+        z-index: -1;
+    }
     /* ---- Hide Streamlit header/footer ---- */
     #MainMenu, footer, header { visibility: hidden; }
 
@@ -114,9 +131,43 @@ UPLOAD_DICT = {
     'Video 3': UPLOAD_DIR/'fire_video_1_hd.mp4'
 }
 
+LOG_CSV = ROOT / "detections.csv"
+if not LOG_CSV.exists():
+    pd.DataFrame(columns=["timestamp","drone","confidence","lat","lon","status"]).to_csv(LOG_CSV, index=False)
+
 #Model Config
 MODEL_DIR = ROOT/'weights'
-DETECTION_MODEL = MODEL_DIR/'yolo11l.pt'
+# DETECTION_MODEL = MODEL_DIR/'yolo11l.pt'
+DETECTION_MODEL = MODEL_DIR/'best.pt'
+
+LOG_INTERVAL = datetime.timedelta(seconds=30)
+LAST_LOG = datetime.datetime.min
+TARGET_CLASS = "fire"
+
+# base lat/lon for mocking
+BASE_LAT, BASE_LON = -33.5, 151.2
+MAX_JITTER = 0.05
+input_type = ""
+
+
+def list_cameras(max_idx=5, backend=cv2.CAP_ANY):
+    valid = []
+    for i in range(max_idx):
+        cap = cv2.VideoCapture(i, backend)
+        if cap.isOpened():
+            valid.append(i)
+            cap.release()
+    return valid
+
+
+def open_first_working_camera(indices):
+    for i in indices:
+        cap = cv2.VideoCapture(i, cv2.CAP_ANY)
+        if cap.isOpened() and cap.read()[0]:
+            return cap
+        cap.release()
+    return None
+
 
 try:
     model = YOLO(DETECTION_MODEL)
@@ -139,7 +190,7 @@ with st.sidebar:
     page = st.radio(
         label="Navigate to",
         options=("Deployed Drones", "Surveillance", "Alerts"),
-        index=1,
+        index=2,
         label_visibility="collapsed"  # hides the label visually but keeps it for accessibility
     )
     st.markdown("---")
@@ -175,8 +226,74 @@ elif page == "Surveillance":
     )
     video_path = None
     if input_type == "Live Camera Feed":
+
+        if not st.button("▶️ Connect & Start Camera Feed"):
+            st.info("Click ▶️ to connect to your webcam")
+            st.stop()
+
         st.info("🔴 Streaming from camera…")
-        # your video loop here
+        available = list_cameras()
+        if not available:
+            st.error("No webcams detected! Please connect a camera and refresh.")
+            st.stop()
+
+        cam_index = st.sidebar.selectbox("Camera index", available, index=0)
+
+        video_cap = open_first_working_camera(available)
+        st.write(f"Using camera index {cam_index}")
+
+        st_frame = st.empty()
+        notice_slot = st.empty()
+        last_log = datetime.datetime.now() - LOG_INTERVAL
+
+        # 4️⃣ Main streaming & logging loop
+        try:
+            while video_cap.isOpened():
+                success, frame = video_cap.read()
+                if not success:
+                    break
+
+                results = model.predict(
+                    source=frame,
+                    conf=confidence,
+                    imgsz=640,
+                    device=device
+                )
+                targets = results[0].boxes
+                now = datetime.datetime.now()
+
+                if len(targets) and (now - last_log) >= LOG_INTERVAL:
+                    for conf, cls in zip(targets.conf, targets.cls):
+                        cls_name = model.names[int(cls.cpu().numpy())].lower()
+                        if cls_name == TARGET_CLASS:
+                            score = float(conf.cpu().numpy())
+
+                            # render annotated frame once
+                            out = results[0].plot()
+                            st_frame.image(out, channels="BGR", use_container_width=True)
+
+                            # mock location string
+                            lat = BASE_LAT + random.uniform(-MAX_JITTER, MAX_JITTER)
+                            lon = BASE_LON + random.uniform(-MAX_JITTER, MAX_JITTER)
+
+                            timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+                            notice_slot.success(
+                                f"🚨 Detected **{TARGET_CLASS}** by Drone D1 at {timestamp} (conf={score:.2f})")
+                            drone = "D-1"
+                            status = "ACTIVE"
+                            # append only timestamp, class, confidence, location, status
+                            with open(LOG_CSV, "a") as f:
+                                f.write(f"{timestamp},{drone},{score:.2f},{lat:.5f}, {lon:.5f},{status}\n")
+
+                            last_log = now
+                            break
+                annotated = results[0].plot()
+                st_frame.image(annotated, channels="BGR", use_container_width=True)
+
+        finally:
+            video_cap.release()
+            st.info("🔴 Streaming stopped.")
+
     elif input_type == "Upload Video File":
         source_video = st.sidebar.selectbox(
             "Choose a Video…", list(UPLOAD_DICT.keys())
@@ -194,7 +311,7 @@ elif page == "Surveillance":
             st_frame = st.empty()
 
             fps = video_cap.get(cv2.CAP_PROP_FPS) or 30  # fallback to 30 if unavailable
-            skip_seconds = 3 * 60  # 5 minutes
+            skip_seconds = (5 * 60) + 5
             skip_frames = int(fps * skip_seconds)
 
             frame_idx = 0
@@ -218,23 +335,34 @@ elif page == "Surveillance":
                         device=device  # if you need to specify GPU/CPU
                     )
                     targets = results[0].boxes
+                    now = datetime.datetime.now()
 
-                    if len(targets) > 0:
-                        # we got a detection—grab its info
-                        box = targets.xyxy[0].cpu().numpy().tolist()
-                        score = float(targets.conf[0].cpu().numpy())
-                        cls_idx = int(targets.cls[0].cpu().numpy())
-                        cls_name = model.names[cls_idx]
+                    if len(targets) and (now - LAST_LOG) >= LOG_INTERVAL:
+                        logged = False
+                        for conf, cls in zip(targets.conf, targets.cls):
+                            cls_name = model.names[int(cls.cpu().numpy())].lower()
+                            if cls_name == TARGET_CLASS:
+                                score = float(conf.cpu().numpy())
 
-                        # show it on the frame
-                        out = results[0].plot()
-                        st_frame.image(out, channels="BGR", use_container_width=True)
+                                # render annotated frame once
+                                out = results[0].plot()
+                                st_frame.image(out, channels="BGR", use_container_width=True)
 
-                        # LOG & NOTIFY ONCE
-                        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        msg = f"🚨 Detected **{cls_name}** at **{timestamp}** (conf={score:.2f})"
-                        notice_slot.success(msg)
-                        detected = True
+                                # mock location string
+                                lat = BASE_LAT + random.uniform(-MAX_JITTER, MAX_JITTER)
+                                lon = BASE_LON + random.uniform(-MAX_JITTER, MAX_JITTER)
+
+                                timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+                                notice_slot.success(f"🚨 Detected **{TARGET_CLASS}** by Drone D1 at {timestamp} (conf={score:.2f})")
+                                drone = "D-1"
+                                status = "ACTIVE"
+                                # append only timestamp, class, confidence, location, status
+                                with open(LOG_CSV, "a") as f:
+                                    f.write(f"{timestamp},{drone},{score:.2f},{lat:.5f}, {lon:.5f},{status}\n")
+
+                                LAST_LOG = now
+                                break
+
                     else:
                         notice_slot.info("No detection on this frame")
 
@@ -258,20 +386,32 @@ elif page == "Surveillance":
 elif page == "Alerts":
     st.subheader("🚨 My Alerts")
     st.write("**Past fire detections & locations**")
-    num_rows = 5
-    statuses = ["ACTIVE" if i % 2 == 0 else "RESOLVED" for i in range(num_rows)]
-    st.table(pd.DataFrame({
-        "Timestamp": pd.date_range("2025-05-20", periods=num_rows, freq="6h"),  # lowercase 'h'
-        "Location": ["NSW, Australia"]*num_rows,
-        "Status": statuses,
-        "Confidence": np.round(np.random.uniform(0.4, 0.9, 5), 2)
-    }))
+    df_log = pd.read_csv(LOG_CSV)
+    # We log a single “location” column
+    if "location" in df_log.columns:
+        df_log["Location"] = df_log["location"]
+    else:
+        df_log["Location"] = "Unknown"
+
+    recent = df_log.sort_values("timestamp", ascending=False).head(20)
+
+    st.table(
+        recent[["timestamp", "drone", "confidence", "lat", "lon", "status"]]
+        .rename(columns={
+            "timestamp": "Time",
+            "drone": "Drone",
+            "confidence": "Confidence",
+            "lat": "Latitude",
+            "lon": "Longitude",
+            "status": "Status"
+        })
+    )
 
 # 5️⃣ MAP SIMULATION (only on Deployed Drones or always show)
-if page in ("Deployed Drones", "Surveillance"):
+if page in ("Deployed Drones", "Surveillance", "Alerts") or input_type in ("Live Camera Feed"):
     st.markdown("### 🌏 Drone Patrol Map")
     n_drones = 5
-    lat0, lon0 = -32.5, 149.5
+    lat0, lon0 = -33.5, 150.2
     lats = lat0 + (np.random.rand(n_drones)-0.5)*2.0
     lons = lon0 + (np.random.rand(n_drones)-0.5)*2.0
     df = pd.DataFrame({"lat": lats, "lon": lons})
